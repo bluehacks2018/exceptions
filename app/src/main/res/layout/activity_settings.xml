@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/content"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=" com.example.feu.beaconscanner.features.settings.SettingsActivity">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Scanner title-->
+        <TextView
+            android:text="@string/scanner"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:paddingTop="16dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:textColor="@color/colorAccent"/>
+
+        <!-- Scan on open toggle -->
+        <android.support.v7.widget.SwitchCompat
+            android:id="@+id/scan_open"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="16dp"/>
+
+        <!-- Feedback and Rating title-->
+
+        <!-- Rate the app -->
+
+        <!-- Feature request -->
+
+        <!-- Tutorial Title -->
+
+        <!-- Activate tutorial -->
+
+        <!-- About Title -->
+
+        <!-- Version of the app -->
+
+    </LinearLayout>
+</ScrollView>

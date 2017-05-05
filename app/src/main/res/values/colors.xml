@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimaryDark">#d27219</color>
+    <color name="colorPrimary">#f39f21</color>
+    <color name="colorPrimaryLight">#e9c280</color>
+    <color name="colorAccent">#f48803</color>
+    <color name="primaryText">#212121</color>
+    <color name="secondaryText">#757575</color>
+    <color name="icons">#FFFFFF</color>
+    <color name="divider">#BDBDBD</color>
+
+    <!-- Bluetooth State colors -->
+    <color name="bluetoothDisabled">#F44336</color>
+    <color name="bluetoothDisabledLight">#FFCDD2</color>
+
+    <color name="bluetoothTurningOff">#006aff</color>
+    <color name="bluetoothTurningOffLight">#b2f6ff</color>
+
+    <color name="bluetoothTurningOn">#8BC34A</color>
+    <color name="bluetoothTurningOnLight">#DCEDC8</color>
+
+    <color name="bgMoreInfo">#645845</color>
+    <color name="progressColor">#0777ff</color>
+    <color name="colorPauseFab">#EF5350 </color>
+</resources>

@@ -1,0 +1,42 @@
+{
+  "project_info": {
+    "project_number": "272660232466",
+    "firebase_url": "https://beaconrscanner.firebaseio.com",
+    "project_id": "beaconrscanner",
+    "storage_bucket": "beaconrscanner.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:272660232466:android:eb2ef11e14f20cc2",
+        "android_client_info": {
+          "package_name": "com.example.feu.beaconscanner"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "272660232466-88q354vgv6r8g9ti58nui9906pntjqdm.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAa4B3WmlbxhsT3lTXkYUtTvTnlT94YvF4"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 1,
+          "other_platform_oauth_client": []
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
