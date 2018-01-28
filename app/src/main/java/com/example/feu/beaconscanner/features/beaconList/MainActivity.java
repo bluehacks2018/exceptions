@@ -10,6 +10,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.RemoteException;
 import android.provider.Settings;
+import android.speech.tts.TextToSpeech;
 import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
@@ -27,12 +28,10 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import com.afollestad.materialdialogs.MaterialDialog;
-import com.afollestad.materialdialogs.Theme;
 import com.example.feu.beaconscanner.AppSingleton;
 import com.example.feu.beaconscanner.R;
 import com.example.feu.beaconscanner.events.Events;
 import com.example.feu.beaconscanner.events.RxBus;
-import com.example.feu.beaconscanner.features.settings.SettingsActivity;
 import com.example.feu.beaconscanner.models.BeaconSaved;
 import com.example.feu.beaconscanner.utils.BluetoothManager;
 import com.example.feu.beaconscanner.utils.DividerItemDecoration;
@@ -45,9 +44,14 @@ import org.altbeacon.beacon.BeaconManager;
 import org.altbeacon.beacon.Region;
 import org.altbeacon.beacon.utils.UrlBeaconUrlCompressor;
 
+import java.text.DecimalFormat;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -64,7 +68,6 @@ import io.realm.Sort;
 import pub.devrel.easypermissions.EasyPermissions;
 
 public class MainActivity extends AppCompatActivity implements BeaconConsumer, EasyPermissions.PermissionCallbacks {
-    protected static final String TAG = "MAIN_ACTIVITY";
     private static final String[] perms = {Manifest.permission.ACCESS_COARSE_LOCATION};
     private static final int RC_COARSE_LOCATION = 1;
     private static final int RC_SETTINGS_SCREEN = 2;
@@ -73,7 +76,14 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
     private Disposable rangeDisposable;
     private MaterialDialog dialog;
     private RealmResults<BeaconSaved> beaconResults;
-    private boolean hasStartedTutorial = false;
+
+    public static double current_distance = 0.0;
+    public static List<BeaconInfo> list = new ArrayList<>();
+    public static boolean statusInit = false;
+    TextToSpeech textToSpeech;
+    public static List<BeaconInfo> tempList = new ArrayList<>();
+    public static boolean isClose = true;
+    public static boolean scanAgain = true;
 
     @Inject BluetoothManager bluetooth;
     @Inject BeaconManager beaconManager;
@@ -114,7 +124,6 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
         beaconsRv.addItemDecoration(new DividerItemDecoration(this, null));
         beaconsRv.setAdapter(new BeaconsRecyclerViewAdapter(this, beaconResults, true));
 
-        // Setup an observable on the bluetooth changes
         bluetoothStateDisposable = bluetooth.asFlowable()
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(e -> {
@@ -126,6 +135,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
 
     @Override
     protected void onResume() {
+        scanAgain = true;
         beaconResults.addChangeListener(results -> {
             if (results.size() == 0 && emptyView.getVisibility() != View.VISIBLE) {
                 beaconsRv.setVisibility(View.GONE);
@@ -136,11 +146,8 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
             }
         });
 
-        // Start scanning if the scan on open is activated or if we were previously scanning
-        if ((prefs.isScanOnOpen() && !isScanning()) || prefs.wasScanning()) {
-            if (bluetooth.isEnabled()) {
+        if (bluetooth.isEnabled()) {
                 startScan();
-            }
         }
         super.onResume();
     }
@@ -150,7 +157,6 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
             Observable.fromIterable(beacons)
                     .subscribe(b -> {
                         BeaconSaved beacon = new BeaconSaved();
-                        // Common field to every beacon
                         beacon.setHashcode(b.hashCode());
                         beacon.setLastSeen(new Date());
                         beacon.setLastMinuteSeen(new Date().getTime() / 1000 / 60);
@@ -196,16 +202,74 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
                         infos.putInt("manufacturer", beacon.getManufacturer());
                         infos.putInt("type", beacon.getBeaconType());
                         infos.putDouble("distance", beacon.getDistance());
+                        list.add(new BeaconInfo(beacon.getBeaconAddress(), beacon.getDistance()));
+                        tempList.add(new BeaconInfo(beacon.getBeaconAddress(), beacon.getDistance()));
 
+                        textToSpeech = new TextToSpeech(MainActivity.this, new TextToSpeech.OnInitListener() {
+                            @Override
+                            public void onInit(int status) {
+                                textToSpeech.setLanguage(Locale.ENGLISH);
+                                if (!statusInit && scanAgain){
+                                    DecimalFormat df = new DecimalFormat("#.##");
+                                    textToSpeech.speak("Nearest exit is " + df.format(list.get(0).getDistance()) + "meters away.", TextToSpeech.QUEUE_FLUSH, null);
+                                    statusInit = true;
+                                }
+                                else if (scanAgain){
+                                    DecimalFormat df = new DecimalFormat("#.##");
+                                    Collections.sort(list, new Comparator<BeaconInfo>() {
+                                        @Override
+                                        public int compare(BeaconInfo o1, BeaconInfo o2) {
+                                            if (o1.getDistance() == o2.getDistance()) {
+                                                return 0;
+                                            }
+                                            else if (o1.getDistance() < o2.getDistance()) {
+                                                return -1;
+                                            }
+                                            else {
+                                                return 1;
+                                            }
+                                        }
+                                    });
+                                    String tempAddressHolder = list.get(0).getAddress();
+                                    if (!tempAddressHolder.equals(tempList.get(0).getAddress())) {
+                                        tempList.add(0, new BeaconInfo(list.get(0).getAddress(), list.get(0).getDistance()));
+                                        statusInit = false;
+                                    }
+
+                                    double distance = Double.parseDouble(df.format(list.get(0).getDistance()));
+                                    if (((distance - current_distance) > 0.8) || ((distance - current_distance) < - 0.8)) {
+                                        textToSpeech.speak("Nearest exit is " + distance + " meters away.", TextToSpeech.QUEUE_FLUSH, null);
+                                        current_distance = Double.parseDouble(df.format(list.get(0).getDistance()));
+                                    }
+                                    if (((distance) >= (tempList.get(0).getDistance() / 2)) && ((distance) < ((tempList.get(0).getDistance() / 2) + 0.2))) {
+                                        textToSpeech.speak("Will arrive in " + (int)distance + " seconds.", TextToSpeech.QUEUE_FLUSH, null);
+                                    }
+                                    if ((distance < 1) && (isClose)){
+                                        textToSpeech.speak("Please proceed to the exit", TextToSpeech.QUEUE_FLUSH, null);
+                                        isClose = false;
+                                    }
+                                    else {
+                                        isClose = true;
+                                    }
+                                }
+                            }
+                        });
                         tracker.logEvent("adding_or_updating_beacon", infos);
                         tRealm.copyToRealmOrUpdate(beacon);
                     });
         });
+        list.clear();
+        if (tempList.size() >= 1) {
+            String address = tempList.get(0).getAddress();
+            double initial_distance = tempList.get(0).getDistance();
+            tempList.clear();
+            tempList.add(new BeaconInfo(address, initial_distance));
+        }
     }
 
     private void bluetoothStateChanged(int state) {
         bluetoothState.setVisibility(View.VISIBLE);
-         switch (state) {
+        switch (state) {
             case BluetoothAdapter.STATE_OFF:
                 bluetoothState.setTextColor(ContextCompat.getColor(this, R.color.bluetoothDisabledLight));
                 bluetoothState.setBackgroundColor(ContextCompat.getColor(this, R.color.bluetoothDisabled));
@@ -246,13 +310,16 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
     @OnClick(R.id.scan_fab)
     public void startStopScan() {
         if (!isScanning()) {
+            scanAgain = true;
             tracker.logEvent("start_scanning_clicked", null);
             if (!bluetooth.isEnabled()) {
                 Snackbar.make(rootView, getString(R.string.enable_bluetooth_to_start_scanning), Snackbar.LENGTH_LONG).show();
                 return ;
             }
             startScan();
+
         } else {
+            scanAgain = false;
             tracker.logEvent("stop_scanning_clicked", null);
             stopScan();
         }
@@ -263,6 +330,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
     }
 
     public void startScan() {
+        scanAgain = true;
         if (!isScanning() && bindBeaconManager()) {
             rangeDisposable = rxBus.asFlowable()
                     .observeOn(AndroidSchedulers.mainThread())
@@ -288,6 +356,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
 
     public void stopScan() {
         if (isScanning()) {
+            scanAgain = false;
             rangeDisposable.dispose();
 
             toolbar.setTitle(getString(R.string.app_name));
@@ -301,6 +370,9 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
             } else {
                 scanFab.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.play_icon));
             }
+            realm.executeTransactionAsync(tRealm -> {
+                tRealm.where(BeaconSaved.class).findAll().deleteAllFromRealm();
+            });
         }
     }
 
@@ -311,7 +383,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
         });
 
         try {
-            beaconManager.startRangingBeaconsInRegion(new Region("com.bridou_n.beaconscanner", null, null, null));
+            beaconManager.startRangingBeaconsInRegion(new Region("Beacon Scanner", null, null, null));
         } catch (RemoteException e) {
             e.printStackTrace();
         }
@@ -357,7 +429,7 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.main_menu, menu);
         if (!bluetooth.isEnabled()) {
-            menu.getItem(1).setIcon(R.drawable.ic_bluetooth_disabled_white_24dp);
+            menu.getItem(0).setIcon(R.drawable.ic_bluetooth_disabled_white_24dp);
         }
         return true;
     }
@@ -369,37 +441,15 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
                 bluetooth.toggle();
                 tracker.logEvent("action_bluetooth", null);
                 break ;
-            case R.id.action_clear:
-                tracker.logEvent("action_clear", null);
-                dialog = new MaterialDialog.Builder(this)
-                        .theme(Theme.LIGHT)
-                        .title(R.string.delete_all)
-                        .content(R.string.are_you_sure_delete_all)
-                        .autoDismiss(true)
-                        .onPositive((dialog, which) -> {
-                            tracker.logEvent("action_clear_accepted", null);
-                            realm.executeTransactionAsync(tRealm -> {
-                                tRealm.where(BeaconSaved.class).findAll().deleteAllFromRealm();
-                            });
-                        })
-                        .positiveText(android.R.string.ok)
-                        .negativeText(android.R.string.cancel)
-                        .build();
-                dialog.show();
-                break ;
-            case R.id.action_settings:
-                tracker.logEvent("action_settings", null);
-                startActivity(new Intent(this, SettingsActivity.class));
-                break;
             default:
                 return super.onOptionsItemSelected(item);
-
         }
         return true;
     }
 
     @Override
     protected void onPause() {
+        scanAgain = false;
         prefs.setScanningState(isScanning());
         stopScan();
         super.onPause();
@@ -418,5 +468,30 @@ public class MainActivity extends AppCompatActivity implements BeaconConsumer, E
         }
         realm.close();
         super.onDestroy();
+    }
+    class BeaconInfo {
+
+        public BeaconInfo(String address, double distance) {
+            this.address = address;
+            this.distance = distance;
+        }
+        String address;
+        double distance;
+
+        public String getAddress() {
+            return address;
+        }
+
+        public double getDistance() {
+            return distance;
+        }
+
+        public void setUuid(String newAddress){
+            address = newAddress;
+        }
+
+        public void setDistance(double newDistance){
+            distance = newDistance;
+        }
     }
 }
